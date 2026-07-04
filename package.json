@@ -1,0 +1,20 @@
+{
+  "name": "concordia",
+  "private": true,
+  "version": "0.1.0",
+  "description": "MVP web centralizado do protocolo Concordia para deliberacao assistida por IA.",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev -w @concordia/api\" \"npm run dev -w @concordia/web\"",
+    "build": "npm run build -w @concordia/domain && npm run build -w @concordia/api && npm run build -w @concordia/web",
+    "typecheck": "npm run typecheck -w @concordia/domain && npm run typecheck -w @concordia/api && npm run typecheck -w @concordia/web",
+    "test": "npm run test -w @concordia/api"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "typescript": "^5.7.2"
+  }
+}
