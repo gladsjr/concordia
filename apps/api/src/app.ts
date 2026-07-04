@@ -4,6 +4,7 @@ import { z } from "zod";
 import { decisionMechanisms, topicStatuses, visibilityScopes } from "../../../packages/domain/src/index.js";
 import { AgentRuntime } from "./services/agents.js";
 import { AuditLogService } from "./services/auditLog.js";
+import { createLLMProvider } from "./services/llm/factory.js";
 import { VisibilityService } from "./services/visibility.js";
 import { InMemoryStore } from "./store.js";
 
@@ -41,7 +42,7 @@ export function createApp() {
   const store = new InMemoryStore();
   const auditLog = new AuditLogService();
   const visibility = new VisibilityService();
-  const agents = new AgentRuntime();
+  const agents = new AgentRuntime(createLLMProvider());
   const app = express();
 
   app.use(cors({ origin: process.env.WEB_ORIGIN ?? "http://localhost:5173" }));
@@ -143,17 +144,15 @@ export function createApp() {
     response.status(201).json({ participant });
   });
 
-  app.get("/topics/:topicId/summary", (request, response) => {
+  app.get("/topics/:topicId/summary", async (request, response) => {
     const topic = store.topics.find((item) => item.id === request.params.topicId);
     if (!topic) {
       response.status(404).json({ error: "topic_not_found" });
       return;
     }
 
-    response.json({
-      summary: agents.summarizeTopicForUser(topic),
-      interviewPrompt: agents.draftInterviewPrompt(topic)
-    });
+    const summary = await agents.summarizeTopicForUser(topic);
+    response.json(summary);
   });
 
   app.get("/topics/:topicId/messages", (request, response) => {
@@ -165,7 +164,7 @@ export function createApp() {
     response.json({ messages });
   });
 
-  app.post("/topics/:topicId/messages", (request, response) => {
+  app.post("/topics/:topicId/messages", async (request, response) => {
     const topic = store.topics.find((item) => item.id === request.params.topicId);
     if (!topic) {
       response.status(404).json({ error: "topic_not_found" });
@@ -183,9 +182,9 @@ export function createApp() {
       visibilityScope: payload.visibilityScope
     });
 
-    const fragments = agents
-      .extractInformationFragments(message, userId)
-      .map((fragment) => store.addFragment(fragment));
+    const fragments = (await agents.extractInformationFragments(message, userId)).map((fragment) =>
+      store.addFragment(fragment)
+    );
 
     const agentMessage = store.addMessage({
       topicId: topic.id,
@@ -230,14 +229,14 @@ export function createApp() {
     response.status(201).json({ consent });
   });
 
-  app.get("/topics/:topicId/recommendation", (request, response) => {
+  app.get("/topics/:topicId/recommendation", async (request, response) => {
     const topic = store.topics.find((item) => item.id === request.params.topicId);
     if (!topic) {
       response.status(404).json({ error: "topic_not_found" });
       return;
     }
 
-    response.json({ recommendation: agents.prepareVoteRecommendation(topic), confidence: 0.35 });
+    response.json({ recommendation: await agents.prepareVoteRecommendation(topic), confidence: 0.35 });
   });
 
   app.post("/topics/:topicId/vote", (request, response) => {

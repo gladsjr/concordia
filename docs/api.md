@@ -19,6 +19,8 @@
 - `POST /topics/:topicId/messages`
 - `GET /topics/:topicId/messages`
 
+Quando `LLM_PROVIDER=openai`, o envio de mensagens aciona a OpenAI para extrair fragmentos informacionais estruturados. Quando `LLM_PROVIDER=mock`, a extracao usa regras locais deterministicas.
+
 ## Consentimentos
 
 - `POST /topics/:topicId/consents`

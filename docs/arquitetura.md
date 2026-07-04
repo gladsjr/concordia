@@ -16,12 +16,21 @@ API HTTP com validacao de entrada, controle de fluxo da pauta, armazenamento tem
 
 ### Runtime de agentes
 
-Nesta base inicial, o agente e uma classe local com comportamento deterministico. O contrato ja separa as funcoes principais:
+O agente usa uma interface `LLMProvider`. Por padrao, o provider e `mock`, para testes e desenvolvimento sem custo. Quando `LLM_PROVIDER=openai`, a API usa o SDK oficial da OpenAI e le a chave de `OPENAI_API_KEY`.
+
+O contrato separa as funcoes principais:
 
 - resumir pauta;
 - gerar roteiro de entrevista;
 - extrair fragmentos informacionais;
 - preparar recomendacao preliminar.
+
+Providers atuais:
+
+- `MockLLMProvider`: deterministico, usado por padrao.
+- `OpenAILLMProvider`: usa a Responses API da OpenAI.
+
+Essa separacao preserva a independencia de fornecedor prevista na especificacao e permite adicionar Anthropic ou outro provedor depois sem alterar as rotas.
 
 ### VisibilityService
 
@@ -35,7 +44,6 @@ Registra eventos com hash do payload e encadeamento pelo hash anterior. A implem
 
 - Escolher banco de dados inicial, provavelmente PostgreSQL.
 - Escolher autenticacao inicial.
-- Definir provedor de IA via interface `LLMProvider`.
+- Expandir `LLMProvider` para multiplos fornecedores.
 - Trocar armazenamento em memoria por repositorios persistentes.
 - Separar testes de unidade dos testes HTTP.
-

@@ -41,7 +41,22 @@ npm run test
 npm run build
 ```
 
+## IA
+
+Por padrao, a API usa `LLM_PROVIDER=mock`, sem chamadas externas.
+
+Para usar OpenAI localmente, crie um arquivo `.env` na raiz do projeto:
+
+```env
+PORT=3333
+WEB_ORIGIN=http://localhost:5173
+LLM_PROVIDER=openai
+OPENAI_API_KEY=sua-chave-local
+OPENAI_MODEL=gpt-5.5
+```
+
+O arquivo `.env` esta no `.gitignore` e nao deve ser enviado ao GitHub.
+
 ## GitHub
 
 Este projeto foi criado localmente. A decisao de criar o repositorio no GitHub deve vir depois de escolher se ele sera publico ou privado.
-
