@@ -28,17 +28,19 @@
 
 ## Sprint 4 - Partidos dinamicos
 
-- [ ] Implementar criacao de partidos.
-- [ ] Implementar associacao nao exclusiva de usuarios.
+- [x] Implementar criacao simulada de partidos.
+- [x] Implementar associacao simulada de usuarios a partidos.
 - [ ] Implementar chat interno de partido.
 - [ ] Implementar proposta de partido.
 
 ## Sprint 5 - Negociacao e sintese
 
-- [ ] Implementar rodadas de negociacao.
-- [ ] Implementar propostas e contrapropostas.
+- [x] Implementar rodada simulada de negociacao.
+- [x] Implementar propostas finais simuladas.
+- [ ] Implementar rodadas reais de negociacao.
+- [ ] Implementar propostas e contrapropostas reais.
 - [ ] Implementar visibilidade para membros dos partidos envolvidos.
-- [ ] Implementar sintese de alternativas finais.
+- [x] Implementar sintese simulada de alternativas finais.
 
 ## Sprint 6 - Votacao e auditoria
 
@@ -48,4 +50,3 @@
 - [ ] Implementar votacao quadratica.
 - [ ] Implementar raiz de Merkle por pauta ou rodada.
 - [ ] Implementar exportacao de auditoria.
-

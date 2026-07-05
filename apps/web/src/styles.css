@@ -212,6 +212,38 @@ textarea:focus {
   gap: 16px;
 }
 
+.simulation-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  border: 1px solid #d8d2c4;
+  border-radius: 8px;
+  background: #fffdf8;
+  padding: 16px 18px;
+}
+
+.simulation-toolbar p {
+  margin: 8px 0 0;
+  color: #3f4a50;
+}
+
+.simulation-actions {
+  display: flex;
+  align-items: end;
+  gap: 12px;
+}
+
+.simulation-actions input {
+  width: 112px;
+}
+
+.simulation-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
+  gap: 16px;
+}
+
 .panel,
 .conversation {
   border: 1px solid #d8d2c4;
@@ -224,6 +256,98 @@ textarea:focus {
   display: grid;
   align-content: start;
   gap: 14px;
+}
+
+.simulation-panel.wide {
+  grid-column: 1 / -1;
+}
+
+.participant-list,
+.party-list,
+.proposal-list {
+  display: grid;
+  gap: 12px;
+}
+
+.participant-card,
+.party-card,
+.proposal-card {
+  display: grid;
+  gap: 8px;
+  border: 1px solid #ebe5d8;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 12px;
+}
+
+.participant-card > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.participant-card strong,
+.party-card strong,
+.proposal-card strong {
+  color: #182126;
+}
+
+.participant-card p,
+.party-card p,
+.proposal-card p {
+  margin: 0;
+  color: #3f4a50;
+  line-height: 1.45;
+}
+
+.participant-card small,
+.party-card small {
+  color: #697176;
+}
+
+dl {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+dt {
+  color: #697176;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+dd {
+  margin: 2px 0 0;
+  color: #283338;
+  line-height: 1.4;
+}
+
+.proposal-highlight {
+  border-left: 4px solid #d4a72c;
+  background: #fff7dd;
+  padding: 12px;
+  color: #2f3728;
+  line-height: 1.45;
+}
+
+.simulation-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.simulation-columns strong {
+  color: #283338;
+}
+
+.simulation-columns ul {
+  margin: 8px 0 0;
+  padding-left: 20px;
+  color: #3f4a50;
+  line-height: 1.45;
 }
 
 .prompt {
@@ -322,6 +446,21 @@ code {
   }
 
   .content-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .simulation-toolbar,
+  .simulation-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .simulation-actions input {
+    width: 100%;
+  }
+
+  .simulation-grid,
+  .simulation-columns {
     grid-template-columns: 1fr;
   }
 

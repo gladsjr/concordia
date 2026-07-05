@@ -1,4 +1,4 @@
-import type { AuditEvent, Message, Topic } from "../../../packages/domain/src/index";
+import type { AuditEvent, Message, SimulationRun, Topic } from "../../../packages/domain/src/index";
 
 const apiBaseUrl = import.meta.env.VITE_API_URL ?? "http://localhost:3333";
 
@@ -54,6 +54,17 @@ export function sendMessage(topicId: string, content: string) {
       content,
       visibilityScope: "private_user_agent"
     })
+  });
+}
+
+export function getLatestSimulation(topicId: string) {
+  return request<{ simulation: SimulationRun | null }>(`/topics/${topicId}/simulations/latest`);
+}
+
+export function runSimulation(topicId: string, participantCount: number) {
+  return request<{ simulation: SimulationRun }>(`/topics/${topicId}/simulations`, {
+    method: "POST",
+    body: JSON.stringify({ participantCount })
   });
 }
 

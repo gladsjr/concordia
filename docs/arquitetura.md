@@ -32,6 +32,12 @@ Providers atuais:
 
 Essa separacao preserva a independencia de fornecedor prevista na especificacao e permite adicionar Anthropic ou outro provedor depois sem alterar as rotas.
 
+### Simulacao multiagente
+
+O MVP inclui um modo de simulacao para uma pauta. O coordenador gera participantes ficticios, posicoes, restricoes, concessoes, partidos dinamicos, uma rodada de negociacao e propostas finais.
+
+Essa simulacao serve para demonstrar o ciclo deliberativo antes de implementar multiusuario real. Os participantes simulados sao gravados como usuarios locais ficticios, mensagens agregadas, fragmentos informacionais, partidos, propostas e eventos auditaveis.
+
 ### VisibilityService
 
 Modulo responsavel por decidir quais mensagens ou fragmentos podem ser exibidos a um usuario. Ele deve evoluir antes de qualquer persistencia real, porque privacidade seletiva e central no protocolo.

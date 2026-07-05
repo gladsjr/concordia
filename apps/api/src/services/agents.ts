@@ -31,6 +31,42 @@ const fragmentsSchema = z.object({
   fragments: z.array(fragmentSchema)
 });
 
+const simulatedDeliberationSchema = z.object({
+  participants: z.array(
+    z.object({
+      displayName: z.string(),
+      perspective: z.string(),
+      stance: z.string(),
+      motivation: z.string(),
+      constraint: z.string(),
+      concession: z.string(),
+      preferredParty: z.string()
+    })
+  ),
+  parties: z.array(
+    z.object({
+      name: z.string(),
+      description: z.string(),
+      formationReason: z.string(),
+      memberNames: z.array(z.string())
+    })
+  ),
+  negotiation: z.object({
+    summary: z.string(),
+    tensions: z.array(z.string()),
+    compromiseProposal: z.string(),
+    unresolvedIssues: z.array(z.string())
+  }),
+  proposals: z.array(
+    z.object({
+      title: z.string(),
+      description: z.string()
+    })
+  )
+});
+
+export type SimulatedDeliberationDraft = z.infer<typeof simulatedDeliberationSchema>;
+
 const topicSummaryJsonSchema = {
   type: "object",
   additionalProperties: false,
@@ -81,6 +117,77 @@ const informationFragmentsJsonSchema = {
     }
   },
   required: ["fragments"]
+};
+
+const simulatedDeliberationJsonSchema = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    participants: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          displayName: { type: "string" },
+          perspective: { type: "string" },
+          stance: { type: "string" },
+          motivation: { type: "string" },
+          constraint: { type: "string" },
+          concession: { type: "string" },
+          preferredParty: { type: "string" }
+        },
+        required: ["displayName", "perspective", "stance", "motivation", "constraint", "concession", "preferredParty"]
+      }
+    },
+    parties: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          name: { type: "string" },
+          description: { type: "string" },
+          formationReason: { type: "string" },
+          memberNames: {
+            type: "array",
+            items: { type: "string" }
+          }
+        },
+        required: ["name", "description", "formationReason", "memberNames"]
+      }
+    },
+    negotiation: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        summary: { type: "string" },
+        tensions: {
+          type: "array",
+          items: { type: "string" }
+        },
+        compromiseProposal: { type: "string" },
+        unresolvedIssues: {
+          type: "array",
+          items: { type: "string" }
+        }
+      },
+      required: ["summary", "tensions", "compromiseProposal", "unresolvedIssues"]
+    },
+    proposals: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          title: { type: "string" },
+          description: { type: "string" }
+        },
+        required: ["title", "description"]
+      }
+    }
+  },
+  required: ["participants", "parties", "negotiation", "proposals"]
 };
 
 export class AgentRuntime {
@@ -155,5 +262,35 @@ export class AgentRuntime {
         `Mecanismo de decisao: ${topic.decisionPolicy}`
       ].join("\n")
     });
+  }
+
+  async simulateDeliberation(topic: Topic, participantCount: number): Promise<SimulatedDeliberationDraft> {
+    const result = await this.llmProvider.generateJson({
+      schemaName: "deliberation_simulation",
+      jsonSchema: simulatedDeliberationJsonSchema,
+      instructions: [
+        "Voce e o agente coordenador de uma pauta no Concordia.",
+        "Crie uma simulacao realista de deliberacao com participantes ficticios.",
+        "Cada participante deve ter uma perspectiva distinta, uma posicao clara, uma motivacao, uma restricao e uma concessao possivel.",
+        "Agrupe participantes em partidos dinamicos nao exclusivos conceitualmente, mas escolha um partido principal para cada participante.",
+        "Produza uma rodada de negociacao entre partidos e propostas intermediarias concretas.",
+        "Nao use nomes de pessoas reais. Nao invente fatos externos. Mantenha tudo compativel com a pauta recebida."
+      ].join(" "),
+      input: [
+        `Quantidade de participantes ficticios: ${participantCount}`,
+        `Titulo: ${topic.title}`,
+        `Descricao: ${topic.description}`,
+        `Pergunta deliberativa: ${topic.deliberativeQuestion}`,
+        `Mecanismo de decisao: ${topic.decisionPolicy}`
+      ].join("\n")
+    });
+
+    const parsed = simulatedDeliberationSchema.parse(result);
+    return {
+      ...parsed,
+      participants: parsed.participants.slice(0, participantCount),
+      parties: parsed.parties.slice(0, Math.max(2, Math.min(4, participantCount))),
+      proposals: parsed.proposals.slice(0, 4)
+    };
   }
 }

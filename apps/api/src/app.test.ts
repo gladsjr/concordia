@@ -40,4 +40,27 @@ describe("Concordia API", () => {
     expect(response.body.fragments).toHaveLength(2);
     expect(response.body.agentMessage.content).toContain("consentimento");
   });
+
+  it("roda uma simulacao multiagente para uma pauta", async () => {
+    const app = createApp();
+    const topicResponse = await request(app)
+      .post("/topics")
+      .send({
+        title: "Modelo de governanca",
+        description: "Escolher como uma comunidade deve tomar decisoes recorrentes.",
+        deliberativeQuestion: "Qual modelo de governanca deve ser adotado inicialmente?"
+      });
+
+    const response = await request(app)
+      .post(`/topics/${topicResponse.body.topic.id}/simulations`)
+      .send({ participantCount: 5 });
+
+    expect(response.status).toBe(201);
+    expect(response.body.simulation.participants).toHaveLength(5);
+    expect(response.body.simulation.parties.length).toBeGreaterThanOrEqual(2);
+    expect(response.body.simulation.negotiationRound.summary).toContain("partidos");
+
+    const latestResponse = await request(app).get(`/topics/${topicResponse.body.topic.id}/simulations/latest`);
+    expect(latestResponse.body.simulation.id).toBe(response.body.simulation.id);
+  });
 });

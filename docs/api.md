@@ -30,6 +30,13 @@ Quando `LLM_PROVIDER=openai`, o envio de mensagens aciona a OpenAI para extrair 
 - `GET /topics/:topicId/recommendation`
 - `POST /topics/:topicId/vote`
 
+## Simulacao
+
+- `POST /topics/:topicId/simulations`
+- `GET /topics/:topicId/simulations/latest`
+
+A simulacao cria participantes ficticios, partidos dinamicos, uma rodada de negociacao e alternativas finais. Ela nao substitui multiusuario real: e um modo de demonstracao para explorar como o protocolo se comportaria com varios agentes.
+
 ## Auditoria
 
 - `GET /topics/:topicId/audit-events`

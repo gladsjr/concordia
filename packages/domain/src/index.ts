@@ -124,6 +124,34 @@ export interface Party {
   createdAt: string;
 }
 
+export interface SimulatedParticipant {
+  id: string;
+  topicId: string;
+  userId: string;
+  displayName: string;
+  perspective: string;
+  stance: string;
+  motivation: string;
+  constraint: string;
+  concession: string;
+  partyId: string;
+  createdAt: string;
+}
+
+export interface NegotiationRound {
+  id: string;
+  topicId: string;
+  roundType: "simulation";
+  participantsScope: string;
+  status: "completed";
+  summary: string;
+  tensions: string[];
+  compromiseProposal: string;
+  unresolvedIssues: string[];
+  startedAt: string;
+  endedAt: string;
+}
+
 export interface Proposal {
   id: string;
   topicId: string;
@@ -144,6 +172,17 @@ export interface Vote {
   voteType: DecisionMechanism;
   votePayload: Record<string, unknown>;
   voteHash: string;
+  createdAt: string;
+}
+
+export interface SimulationRun {
+  id: string;
+  topicId: string;
+  participantCount: number;
+  participants: SimulatedParticipant[];
+  parties: Party[];
+  negotiationRound: NegotiationRound;
+  proposals: Proposal[];
   createdAt: string;
 }
 

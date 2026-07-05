@@ -1,10 +1,11 @@
 import cors from "cors";
-import express from "express";
+import express, { type NextFunction, type Request, type RequestHandler, type Response } from "express";
 import { z } from "zod";
 import { decisionMechanisms, topicStatuses, visibilityScopes } from "../../../packages/domain/src/index.js";
 import { AgentRuntime } from "./services/agents.js";
 import { AuditLogService } from "./services/auditLog.js";
 import { createLLMProvider } from "./services/llm/factory.js";
+import { SimulationService } from "./services/simulation.js";
 import { VisibilityService } from "./services/visibility.js";
 import { InMemoryStore } from "./store.js";
 
@@ -38,11 +39,22 @@ const voteSchema = z.object({
   votePayload: z.record(z.unknown())
 });
 
+const simulationSchema = z.object({
+  participantCount: z.number().int().min(3).max(10).default(6)
+});
+
+function asyncHandler(handler: (request: Request, response: Response, next: NextFunction) => Promise<void>): RequestHandler {
+  return (request, response, next) => {
+    void handler(request, response, next).catch(next);
+  };
+}
+
 export function createApp() {
   const store = new InMemoryStore();
   const auditLog = new AuditLogService();
   const visibility = new VisibilityService();
   const agents = new AgentRuntime(createLLMProvider());
+  const simulationService = new SimulationService(store, agents, auditLog);
   const app = express();
 
   app.use(cors({ origin: process.env.WEB_ORIGIN ?? "http://localhost:5173" }));
@@ -144,7 +156,7 @@ export function createApp() {
     response.status(201).json({ participant });
   });
 
-  app.get("/topics/:topicId/summary", async (request, response) => {
+  app.get("/topics/:topicId/summary", asyncHandler(async (request, response) => {
     const topic = store.topics.find((item) => item.id === request.params.topicId);
     if (!topic) {
       response.status(404).json({ error: "topic_not_found" });
@@ -153,7 +165,7 @@ export function createApp() {
 
     const summary = await agents.summarizeTopicForUser(topic);
     response.json(summary);
-  });
+  }));
 
   app.get("/topics/:topicId/messages", (request, response) => {
     const participants = store.participants.filter((participant) => participant.topicId === request.params.topicId);
@@ -164,7 +176,7 @@ export function createApp() {
     response.json({ messages });
   });
 
-  app.post("/topics/:topicId/messages", async (request, response) => {
+  app.post("/topics/:topicId/messages", asyncHandler(async (request, response) => {
     const topic = store.topics.find((item) => item.id === request.params.topicId);
     if (!topic) {
       response.status(404).json({ error: "topic_not_found" });
@@ -206,7 +218,7 @@ export function createApp() {
     });
 
     response.status(201).json({ message, fragments, agentMessage });
-  });
+  }));
 
   app.post("/topics/:topicId/consents", (request, response) => {
     const topic = store.topics.find((item) => item.id === request.params.topicId);
@@ -229,7 +241,7 @@ export function createApp() {
     response.status(201).json({ consent });
   });
 
-  app.get("/topics/:topicId/recommendation", async (request, response) => {
+  app.get("/topics/:topicId/recommendation", asyncHandler(async (request, response) => {
     const topic = store.topics.find((item) => item.id === request.params.topicId);
     if (!topic) {
       response.status(404).json({ error: "topic_not_found" });
@@ -237,7 +249,7 @@ export function createApp() {
     }
 
     response.json({ recommendation: await agents.prepareVoteRecommendation(topic), confidence: 0.35 });
-  });
+  }));
 
   app.post("/topics/:topicId/vote", (request, response) => {
     const topic = store.topics.find((item) => item.id === request.params.topicId);
@@ -260,8 +272,38 @@ export function createApp() {
     response.status(201).json({ vote });
   });
 
+  app.get("/topics/:topicId/simulations/latest", (request, response) => {
+    const simulation = store.simulationRuns
+      .filter((item) => item.topicId === request.params.topicId)
+      .at(-1);
+
+    response.json({ simulation: simulation ?? null });
+  });
+
+  app.post("/topics/:topicId/simulations", asyncHandler(async (request, response) => {
+    const topic = store.topics.find((item) => item.id === request.params.topicId);
+    if (!topic) {
+      response.status(404).json({ error: "topic_not_found" });
+      return;
+    }
+
+    const payload = simulationSchema.parse(request.body ?? {});
+    const simulation = await simulationService.runTopicSimulation(topic, payload.participantCount);
+    response.status(201).json({ simulation });
+  }));
+
   app.get("/topics/:topicId/audit-events", (request, response) => {
     response.json({ events: auditLog.list(request.params.topicId) });
+  });
+
+  app.use((error: unknown, _request: Request, response: Response, _next: NextFunction) => {
+    if (error instanceof z.ZodError) {
+      response.status(400).json({ error: "invalid_request", issues: error.issues });
+      return;
+    }
+
+    console.error(error);
+    response.status(500).json({ error: "internal_error" });
   });
 
   return app;

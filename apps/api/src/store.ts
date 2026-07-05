@@ -3,8 +3,12 @@ import type {
   Consent,
   InformationFragment,
   Message,
+  NegotiationRound,
   Participant,
+  Party,
   Proposal,
+  SimulatedParticipant,
+  SimulationRun,
   Topic,
   User,
   Vote
@@ -29,8 +33,24 @@ export class InMemoryStore {
   readonly messages: Message[] = [];
   readonly fragments: InformationFragment[] = [];
   readonly consents: Consent[] = [];
+  readonly parties: Party[] = [];
+  readonly negotiationRounds: NegotiationRound[] = [];
   readonly proposals: Proposal[] = [];
+  readonly simulationRuns: SimulationRun[] = [];
   readonly votes: Vote[] = [];
+
+  createUser(input: { displayName: string; identityProvider?: User["identityProvider"] }): User {
+    const user: User = {
+      id: randomUUID(),
+      displayName: input.displayName,
+      identityProvider: input.identityProvider ?? "local",
+      createdAt: now(),
+      status: "active"
+    };
+
+    this.users.push(user);
+    return user;
+  }
 
   createTopic(input: {
     title: string;
@@ -124,6 +144,60 @@ export class InMemoryStore {
 
     this.consents.push(consent);
     return consent;
+  }
+
+  addParty(input: Omit<Party, "id" | "createdAt">): Party {
+    const party: Party = {
+      ...input,
+      id: randomUUID(),
+      createdAt: now()
+    };
+
+    this.parties.push(party);
+    return party;
+  }
+
+  addNegotiationRound(input: Omit<NegotiationRound, "id" | "startedAt" | "endedAt">): NegotiationRound {
+    const timestamp = now();
+    const negotiationRound: NegotiationRound = {
+      ...input,
+      id: randomUUID(),
+      startedAt: timestamp,
+      endedAt: timestamp
+    };
+
+    this.negotiationRounds.push(negotiationRound);
+    return negotiationRound;
+  }
+
+  addProposal(input: Omit<Proposal, "id" | "createdAt">): Proposal {
+    const proposal: Proposal = {
+      ...input,
+      id: randomUUID(),
+      createdAt: now()
+    };
+
+    this.proposals.push(proposal);
+    return proposal;
+  }
+
+  addSimulationRun(input: Omit<SimulationRun, "id" | "createdAt">): SimulationRun {
+    const simulationRun: SimulationRun = {
+      ...input,
+      id: randomUUID(),
+      createdAt: now()
+    };
+
+    this.simulationRuns.push(simulationRun);
+    return simulationRun;
+  }
+
+  buildSimulatedParticipant(input: Omit<SimulatedParticipant, "id" | "createdAt">): SimulatedParticipant {
+    return {
+      ...input,
+      id: randomUUID(),
+      createdAt: now()
+    };
   }
 
   addVote(input: Omit<Vote, "id" | "voteHash" | "createdAt">): Vote {
