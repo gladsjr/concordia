@@ -4,7 +4,7 @@ import { z } from "zod";
 import { decisionMechanisms, topicStatuses, visibilityScopes } from "../../../packages/domain/src/index.js";
 import { AgentRuntime } from "./services/agents.js";
 import { AuditLogService } from "./services/auditLog.js";
-import { createLLMProvider } from "./services/llm/factory.js";
+import { createLLMProviders, getLLMRuntimeConfig } from "./services/llm/factory.js";
 import { SimulationService } from "./services/simulation.js";
 import { VisibilityService } from "./services/visibility.js";
 import { InMemoryStore } from "./store.js";
@@ -40,7 +40,8 @@ const voteSchema = z.object({
 });
 
 const simulationSchema = z.object({
-  participantCount: z.number().int().min(3).max(10).default(6)
+  participantCount: z.number().int().min(3).max(10).default(6),
+  roundCount: z.number().int().min(1).max(4).default(2)
 });
 
 function asyncHandler(handler: (request: Request, response: Response, next: NextFunction) => Promise<void>): RequestHandler {
@@ -53,7 +54,7 @@ export function createApp() {
   const store = new InMemoryStore();
   const auditLog = new AuditLogService();
   const visibility = new VisibilityService();
-  const agents = new AgentRuntime(createLLMProvider());
+  const agents = new AgentRuntime(createLLMProviders());
   const simulationService = new SimulationService(store, agents, auditLog);
   const app = express();
 
@@ -61,7 +62,7 @@ export function createApp() {
   app.use(express.json());
 
   app.get("/health", (_request, response) => {
-    response.json({ ok: true, service: "concordia-api" });
+    response.json({ ok: true, service: "concordia-api", llm: getLLMRuntimeConfig() });
   });
 
   app.get("/topics", (_request, response) => {
@@ -101,7 +102,8 @@ export function createApp() {
   });
 
   app.post("/topics/:topicId/publish", (request, response) => {
-    const topic = store.updateTopic(request.params.topicId, { status: "published" });
+    const topicId = String(request.params.topicId);
+    const topic = store.updateTopic(topicId, { status: "published" });
     if (!topic) {
       response.status(404).json({ error: "topic_not_found" });
       return;
@@ -191,7 +193,8 @@ export function createApp() {
       recipientType: "user_agent",
       recipientId: `agent-${userId}`,
       content: payload.content,
-      visibilityScope: payload.visibilityScope
+      visibilityScope: payload.visibilityScope,
+      conversationType: "private_interview"
     });
 
     const fragments = (await agents.extractInformationFragments(message, userId)).map((fragment) =>
@@ -205,7 +208,8 @@ export function createApp() {
       recipientType: "user",
       recipientId: userId,
       content: `Registrei ${fragments.length} fragmento(s) e vou pedir consentimento antes de ampliar qualquer escopo.`,
-      visibilityScope: "private_user_agent"
+      visibilityScope: "private_user_agent",
+      conversationType: "private_interview"
     });
 
     auditLog.record({
@@ -288,7 +292,7 @@ export function createApp() {
     }
 
     const payload = simulationSchema.parse(request.body ?? {});
-    const simulation = await simulationService.runTopicSimulation(topic, payload.participantCount);
+    const simulation = await simulationService.runTopicSimulation(topic, payload.participantCount, payload.roundCount);
     response.status(201).json({ simulation });
   }));
 

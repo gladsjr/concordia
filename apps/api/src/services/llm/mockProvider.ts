@@ -75,11 +75,11 @@ export class MockLLMProvider implements LLMProvider {
         ],
         negotiation: {
           summary:
-            "Os partidos concordaram em trocar uma decisao ampla por um piloto com criterios publicos, revisao em prazo definido e direito de contestacao.",
+            "O agente negociador comum tornou publicos os limites de cada participante simulado e convergiu para um piloto com criterios publicos, revisao em prazo definido e direito de contestacao.",
           tensions: [
             "Velocidade de implementacao contra necessidade de garantias.",
             "Custo operacional contra amplitude de participacao.",
-            "Transparencia publica contra protecao de motivacoes privadas."
+            "Transparencia integral da simulacao contra cuidado com informacoes que seriam privadas em fluxos futuros."
           ],
           compromiseProposal:
             "Executar um piloto limitado, com metricas de sucesso, relatorio publico resumido e nova rodada de deliberacao antes de ampliar a decisao.",
@@ -108,6 +108,73 @@ export class MockLLMProvider implements LLMProvider {
       };
     }
 
+    if (input.schemaName === "simulated_participant_turn") {
+      const profile = parseJsonBlock(input.input, "Ficha do participante:");
+      const participantName = typeof profile.displayName === "string" ? profile.displayName : "Participante";
+      const constraint = typeof profile.constraint === "string" ? profile.constraint : "preciso de garantias claras";
+      const concession = typeof profile.concession === "string" ? profile.concession : "aceito testar em escala limitada";
+
+      return {
+        publicMessage: [
+          `${participantName}: mantenho minha posicao, mas consigo negociar se meu limite for levado a serio.`,
+          `Meu limite segue sendo: ${constraint}`,
+          `Minha concessao nesta rodada: ${concession}`
+        ].join("\n"),
+        acceptance: "conditional",
+        conditions: [constraint],
+        concessionsOffered: [concession],
+        concerns: ["A proposta precisa deixar criterio, prazo e responsavel de revisao mais claros."]
+      };
+    }
+
+    if (input.schemaName === "negotiator_round") {
+      const roundMatch = input.input.match(/Rodada: (\d+)/);
+      const roundNumber = Number(roundMatch?.[1] ?? 1);
+
+      return {
+        publicMessage: [
+          `Agente negociador: consolidei a rodada ${roundNumber} a partir das mensagens publicas.`,
+          "A proposta avanca apenas onde ha concessao explicita e preserva os limites que apareceram como inegociaveis."
+        ].join("\n"),
+        summary:
+          "O agente negociador comum tornou publicas as condicoes dos participantes simulados e aproximou as posicoes em torno de um piloto auditavel.",
+        tensions: [
+          "Velocidade contra reversibilidade.",
+          "Custo de medicao contra necessidade de evidencias.",
+          "Participacao ampla contra simplicidade operacional."
+        ],
+        compromiseProposal:
+          "Executar um piloto limitado com metricas publicas, prazo de revisao, assentos para afetados diretos e gatilho de pausa se houver dano mensuravel.",
+        unresolvedIssues: [
+          "Definir quem valida as metricas.",
+          "Estabelecer como participantes tardios podem contestar a decisao."
+        ],
+        questionsForParticipants: [
+          {
+            participantName: "Ana Costa",
+            question: "A revisao publica com gatilho de pausa satisfaz sua exigencia de reversibilidade?"
+          }
+        ],
+        proposals: [
+          {
+            title: "Piloto auditavel com gatilho de pausa",
+            description:
+              "Implementar por prazo limitado, com metricas publicas, revisao obrigatoria e pausa automatica se danos mensuraveis aparecerem."
+          },
+          {
+            title: "Aprovacao condicionada com assentos de afetados",
+            description:
+              "Aprovar somente se participantes diretamente afetados tiverem assento na validacao das metricas e poder de contestacao."
+          },
+          {
+            title: "Nova coleta antes de decidir",
+            description:
+              "Adiar a decisao final e abrir nova coleta publica focada nas pendencias ainda nao resolvidas."
+          }
+        ]
+      };
+    }
+
     return {};
   }
 }
@@ -121,6 +188,11 @@ function buildMockParticipants(participantCount: number) {
       motivation: "Quer evitar que a decisao crie perdas concentradas.",
       constraint: "Nao aceita implementacao irreversivel.",
       concession: "Aceita piloto se houver revisao publica.",
+      values: ["reversibilidade", "protecao de afetados", "transparencia"],
+      hardConstraints: ["Nao aceita implementacao irreversivel."],
+      negotiablePreferences: ["Aceita piloto se houver revisao publica."],
+      cooperationStyle: "principled",
+      suspicionLevel: "high",
       preferredParty: "Garantias primeiro"
     },
     {
@@ -130,6 +202,11 @@ function buildMockParticipants(participantCount: number) {
       motivation: "Quer reduzir risco operacional.",
       constraint: "Nao aceita aumento de custo sem metrica.",
       concession: "Aceita ampliar se o piloto demonstrar resultado.",
+      values: ["viabilidade", "metrica", "controle de custo"],
+      hardConstraints: ["Nao aceita aumento de custo sem metrica."],
+      negotiablePreferences: ["Aceita ampliar se o piloto demonstrar resultado."],
+      cooperationStyle: "pragmatic",
+      suspicionLevel: "medium",
       preferredParty: "Piloto pragmatico"
     },
     {
@@ -139,6 +216,11 @@ function buildMockParticipants(participantCount: number) {
       motivation: "Ve custo alto na demora.",
       constraint: "Nao aceita adiar indefinidamente.",
       concession: "Aceita faseamento se houver data de expansao.",
+      values: ["velocidade", "beneficio rapido", "execucao"],
+      hardConstraints: ["Nao aceita adiar indefinidamente."],
+      negotiablePreferences: ["Aceita faseamento se houver data de expansao."],
+      cooperationStyle: "adversarial",
+      suspicionLevel: "low",
       preferredParty: "Abertura imediata"
     },
     {
@@ -148,6 +230,11 @@ function buildMockParticipants(participantCount: number) {
       motivation: "Quer entender como os interesses foram ponderados.",
       constraint: "Nao aceita resumo opaco.",
       concession: "Aceita delegar avaliacao se houver registro de auditoria.",
+      values: ["auditoria", "explicabilidade", "confianca"],
+      hardConstraints: ["Nao aceita resumo opaco."],
+      negotiablePreferences: ["Aceita delegar avaliacao se houver registro de auditoria."],
+      cooperationStyle: "bridge_builder",
+      suspicionLevel: "medium",
       preferredParty: "Garantias primeiro"
     },
     {
@@ -157,6 +244,11 @@ function buildMockParticipants(participantCount: number) {
       motivation: "Quer uma decisao que a maioria consiga tolerar.",
       constraint: "Nao aceita proposta que ignore minorias afetadas.",
       concession: "Aceita reduzir escopo inicial.",
+      values: ["coalizao", "inclusao", "estabilidade"],
+      hardConstraints: ["Nao aceita proposta que ignore minorias afetadas."],
+      negotiablePreferences: ["Aceita reduzir escopo inicial."],
+      cooperationStyle: "bridge_builder",
+      suspicionLevel: "medium",
       preferredParty: "Piloto pragmatico"
     },
     {
@@ -166,6 +258,11 @@ function buildMockParticipants(participantCount: number) {
       motivation: "Acha que a deliberacao ja revelou convergencia suficiente.",
       constraint: "Nao aceita bloquear tudo por riscos hipoteticos.",
       concession: "Aceita gatilho de pausa se houver dano mensuravel.",
+      values: ["acao", "responsabilizacao", "monitoramento"],
+      hardConstraints: ["Nao aceita bloquear tudo por riscos hipoteticos."],
+      negotiablePreferences: ["Aceita gatilho de pausa se houver dano mensuravel."],
+      cooperationStyle: "adversarial",
+      suspicionLevel: "low",
       preferredParty: "Abertura imediata"
     },
     {
@@ -175,6 +272,11 @@ function buildMockParticipants(participantCount: number) {
       motivation: "Quer evitar que beneficios e custos caiam em grupos diferentes.",
       constraint: "Nao aceita exclusao de afetados diretos.",
       concession: "Aceita piloto se houver assentos reservados para afetados.",
+      values: ["equidade", "representacao", "distribuicao de impacto"],
+      hardConstraints: ["Nao aceita exclusao de afetados diretos."],
+      negotiablePreferences: ["Aceita piloto se houver assentos reservados para afetados."],
+      cooperationStyle: "principled",
+      suspicionLevel: "high",
       preferredParty: "Garantias primeiro"
     },
     {
@@ -184,11 +286,56 @@ function buildMockParticipants(participantCount: number) {
       motivation: "Quer evidencias comparaveis.",
       constraint: "Nao aceita decisao sem indicadores.",
       concession: "Aceita decisao rapida se houver coleta de dados em paralelo.",
+      values: ["evidencia", "comparabilidade", "aprendizado"],
+      hardConstraints: ["Nao aceita decisao sem indicadores."],
+      negotiablePreferences: ["Aceita decisao rapida se houver coleta de dados em paralelo."],
+      cooperationStyle: "pragmatic",
+      suspicionLevel: "medium",
       preferredParty: "Piloto pragmatico"
     }
   ];
 
   return templates.slice(0, participantCount);
+}
+
+function parseJsonBlock(input: string, label: string): Record<string, unknown> {
+  const start = input.indexOf(label);
+  if (start === -1) {
+    return {};
+  }
+
+  const afterLabel = input.slice(start + label.length);
+  const jsonStart = afterLabel.indexOf("{");
+  if (jsonStart === -1) {
+    return {};
+  }
+
+  let depth = 0;
+  let end = -1;
+  const jsonCandidate = afterLabel.slice(jsonStart);
+  for (let index = 0; index < jsonCandidate.length; index += 1) {
+    const char = jsonCandidate[index];
+    if (char === "{") {
+      depth += 1;
+    }
+    if (char === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        end = index + 1;
+        break;
+      }
+    }
+  }
+
+  if (end === -1) {
+    return {};
+  }
+
+  try {
+    return JSON.parse(jsonCandidate.slice(0, end)) as Record<string, unknown>;
+  } catch {
+    return {};
+  }
 }
 
 function classifyFragment(sentence: string): string {

@@ -53,14 +53,46 @@ describe("Concordia API", () => {
 
     const response = await request(app)
       .post(`/topics/${topicResponse.body.topic.id}/simulations`)
-      .send({ participantCount: 5 });
+      .send({ participantCount: 5, roundCount: 2 });
 
     expect(response.status).toBe(201);
     expect(response.body.simulation.participants).toHaveLength(5);
+    expect(response.body.simulation.roundCount).toBe(2);
+    expect(response.body.simulation.negotiationRounds).toHaveLength(2);
     expect(response.body.simulation.parties.length).toBeGreaterThanOrEqual(2);
-    expect(response.body.simulation.negotiationRound.summary).toContain("partidos");
+    expect(response.body.simulation.negotiationRound.summary).toContain("agente negociador");
+    expect(response.body.simulation.negotiationRound.publicTranscriptMessageIds).toHaveLength(
+      response.body.simulation.publicNegotiationMessages.length
+    );
+    expect(response.body.simulation.publicNegotiationMessages.length).toBeGreaterThan(5);
+    expect(
+      response.body.simulation.publicNegotiationMessages.every(
+        (message: { conversationType: string; visibilityScope: string }) =>
+          message.conversationType === "public_negotiation" && message.visibilityScope === "public_full"
+      )
+    ).toBe(true);
 
     const latestResponse = await request(app).get(`/topics/${topicResponse.body.topic.id}/simulations/latest`);
     expect(latestResponse.body.simulation.id).toBe(response.body.simulation.id);
+  });
+
+  it("publica a pauta sem rodar negociacao automaticamente", async () => {
+    const app = createApp();
+    const topicResponse = await request(app)
+      .post("/topics")
+      .send({
+        title: "Prioridades do orcamento",
+        description: "Definir prioridades iniciais para um orcamento comunitario.",
+        deliberativeQuestion: "Quais prioridades devem receber recursos primeiro?"
+      });
+
+    const response = await request(app).post(`/topics/${topicResponse.body.topic.id}/publish`);
+
+    expect(response.status).toBe(200);
+    expect(response.body.topic.status).toBe("published");
+    expect(response.body.simulation).toBeUndefined();
+
+    const latestResponse = await request(app).get(`/topics/${topicResponse.body.topic.id}/simulations/latest`);
+    expect(latestResponse.body.simulation).toBeNull();
   });
 });

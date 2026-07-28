@@ -17,6 +17,7 @@ import type { AuditEvent, Message, SimulationRun, Topic } from "../../../package
 import {
   createTopic,
   getLatestSimulation,
+  getHealth,
   getTopicSummary,
   listAuditEvents,
   listMessages,
@@ -27,6 +28,7 @@ import {
 } from "./api";
 
 type LoadState = "idle" | "loading" | "error";
+type RuntimeInfo = Awaited<ReturnType<typeof getHealth>>["llm"];
 
 export function App() {
   const [topics, setTopics] = useState<Topic[]>([]);
@@ -43,8 +45,12 @@ export function App() {
   });
   const [messageDraft, setMessageDraft] = useState("");
   const [simulationCount, setSimulationCount] = useState(6);
+  const [roundCount, setRoundCount] = useState(2);
+  const [visibleNegotiationMessageCount, setVisibleNegotiationMessageCount] = useState(0);
   const [isSimulating, setIsSimulating] = useState(false);
+  const [simulationError, setSimulationError] = useState<string>();
   const [loadState, setLoadState] = useState<LoadState>("idle");
+  const [runtimeInfo, setRuntimeInfo] = useState<RuntimeInfo>();
 
   const selectedTopic = useMemo(
     () => topics.find((topic) => topic.id === selectedTopicId),
@@ -54,9 +60,28 @@ export function App() {
     () => new Map(simulation?.parties.map((party) => [party.id, party.name]) ?? []),
     [simulation]
   );
+  const participantNamesByUserId = useMemo(
+    () => new Map(simulation?.participants.map((participant) => [participant.userId, participant.displayName]) ?? []),
+    [simulation]
+  );
+  const privateInterviewMessages = useMemo(
+    () => messages.filter((message) => message.conversationType === "private_interview"),
+    [messages]
+  );
+  const visibleNegotiationMessages = useMemo(
+    () => simulation?.publicNegotiationMessages.slice(0, visibleNegotiationMessageCount) ?? [],
+    [simulation, visibleNegotiationMessageCount]
+  );
+  const isRevealingSimulation = Boolean(
+    simulation && visibleNegotiationMessageCount < simulation.publicNegotiationMessages.length
+  );
+  const isSimulationDisplayComplete = Boolean(
+    simulation && visibleNegotiationMessageCount >= simulation.publicNegotiationMessages.length
+  );
 
   useEffect(() => {
     refreshTopics();
+    refreshRuntimeInfo();
   }, []);
 
   useEffect(() => {
@@ -66,6 +91,36 @@ export function App() {
 
     refreshTopicDetail(selectedTopicId);
   }, [selectedTopicId]);
+
+  useEffect(() => {
+    if (!simulation) {
+      setVisibleNegotiationMessageCount(0);
+      return;
+    }
+
+    setVisibleNegotiationMessageCount(0);
+    const timer = window.setInterval(() => {
+      setVisibleNegotiationMessageCount((current) => {
+        if (current >= simulation.publicNegotiationMessages.length) {
+          window.clearInterval(timer);
+          return current;
+        }
+
+        return current + 1;
+      });
+    }, 520);
+
+    return () => window.clearInterval(timer);
+  }, [simulation?.id]);
+
+  async function refreshRuntimeInfo() {
+    try {
+      const response = await getHealth();
+      setRuntimeInfo(response.llm);
+    } catch {
+      setRuntimeInfo(undefined);
+    }
+  }
 
   async function refreshTopics() {
     setLoadState("loading");
@@ -130,8 +185,11 @@ export function App() {
     }
 
     setIsSimulating(true);
+    setSimulationError(undefined);
+    setSimulation(null);
     try {
-      const response = await runSimulation(selectedTopic.id, simulationCount);
+      await refreshRuntimeInfo();
+      const response = await runSimulation(selectedTopic.id, simulationCount, roundCount);
       setSimulation(response.simulation);
       setTopics((current) =>
         current.map((topic) =>
@@ -139,7 +197,14 @@ export function App() {
         )
       );
       await refreshTopicDetail(selectedTopic.id);
+    } catch (error) {
+      setSimulationError(
+        error instanceof Error
+          ? error.message
+          : "Nao foi possivel executar a negociacao."
+      );
     } finally {
+      await refreshRuntimeInfo();
       setIsSimulating(false);
     }
   }
@@ -233,9 +298,18 @@ export function App() {
               <div>
                 <div className="section-title">
                   <Sparkles size={16} aria-hidden="true" />
-                  <span>Simulacao multiagente</span>
+                  <span>Simulacao publica</span>
                 </div>
-                <p>Gere participantes ficticios, partidos dinamicos e uma rodada de negociacao.</p>
+                <p>Rode uma negociacao em que participantes simulados conversam publicamente com o agente comum.</p>
+                {runtimeInfo?.provider === "mock" ? (
+                  <p className="runtime-warning">Runtime mock ativo: respostas sao deterministicas e servem para teste.</p>
+                ) : null}
+                {runtimeInfo?.provider === "openai" ? (
+                  <p className="runtime-note">
+                    OpenAI ativo: negociador {runtimeInfo.negotiatorModel}, simulados{" "}
+                    {runtimeInfo.simulatedParticipantModel}.
+                  </p>
+                ) : null}
               </div>
               <div className="simulation-actions">
                 <label>
@@ -248,19 +322,34 @@ export function App() {
                     onChange={(event) => setSimulationCount(Number(event.target.value))}
                   />
                 </label>
+                <label>
+                  Rodadas
+                  <input
+                    max={4}
+                    min={1}
+                    type="number"
+                    value={roundCount}
+                    onChange={(event) => setRoundCount(Number(event.target.value))}
+                  />
+                </label>
                 <button className="primary-button" disabled={isSimulating} onClick={handleRunSimulation} type="button">
                   <Sparkles size={16} aria-hidden="true" />
-                  {isSimulating ? "Simulando..." : "Simular negociacao"}
+                  {isSimulating ? "Simulando..." : "Rodar negociacao"}
                 </button>
               </div>
             </section>
+            {simulationError ? (
+              <p className="runtime-warning" role="alert">
+                {simulationError}
+              </p>
+            ) : null}
 
             {simulation ? (
               <section className="simulation-grid">
                 <div className="panel simulation-panel">
                   <div className="section-title">
                     <Users size={16} aria-hidden="true" />
-                    <span>Participantes</span>
+                    <span>Participantes simulados</span>
                   </div>
                   <div className="participant-list">
                     {simulation.participants.map((participant) => (
@@ -292,7 +381,7 @@ export function App() {
                 <div className="panel simulation-panel">
                   <div className="section-title">
                     <GitBranch size={16} aria-hidden="true" />
-                    <span>Partidos</span>
+                    <span>Blocos de posicao</span>
                   </div>
                   <div className="party-list">
                     {simulation.parties.map((party) => (
@@ -308,27 +397,65 @@ export function App() {
                 <div className="panel simulation-panel wide">
                   <div className="section-title">
                     <Handshake size={16} aria-hidden="true" />
-                    <span>Negociacao</span>
+                    <span>Rodada publica</span>
                   </div>
                   <p>{simulation.negotiationRound.summary}</p>
-                  <div className="proposal-highlight">{simulation.negotiationRound.compromiseProposal}</div>
-                  <div className="simulation-columns">
-                    <div>
-                      <strong>Tensoes</strong>
-                      <ul>
-                        {simulation.negotiationRound.tensions.map((item) => (
-                          <li key={item}>{item}</li>
-                        ))}
-                      </ul>
+                  <small className="round-count">
+                    {visibleNegotiationMessages.length} de {simulation.publicNegotiationMessages.length} mensagens publicas
+                    exibidas
+                  </small>
+                  {isSimulationDisplayComplete ? (
+                    <>
+                      <div className="proposal-highlight">{simulation.negotiationRound.compromiseProposal}</div>
+                      <div className="simulation-columns">
+                        <div>
+                          <strong>Tensoes</strong>
+                          <ul>
+                            {simulation.negotiationRound.tensions.map((item) => (
+                              <li key={item}>{item}</li>
+                            ))}
+                          </ul>
+                        </div>
+                        <div>
+                          <strong>Pendencias</strong>
+                          <ul>
+                            {simulation.negotiationRound.unresolvedIssues.map((item) => (
+                              <li key={item}>{item}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="proposal-highlight">A proposta final aparece ao fim da exibicao do transcript.</div>
+                  )}
+                  {isRevealingSimulation ? (
+                    <div className="live-indicator" aria-live="polite">
+                      Negociacao em exibicao
                     </div>
-                    <div>
-                      <strong>Pendencias</strong>
-                      <ul>
-                        {simulation.negotiationRound.unresolvedIssues.map((item) => (
-                          <li key={item}>{item}</li>
-                        ))}
-                      </ul>
-                    </div>
+                  ) : null}
+                </div>
+
+                <div className="panel simulation-panel wide">
+                  <div className="section-title">
+                    <MessageSquareText size={16} aria-hidden="true" />
+                    <span>Transcript auditavel</span>
+                  </div>
+                  <div className="transcript-list">
+                    {visibleNegotiationMessages.map((message) => (
+                      <article className={`negotiation-message ${message.senderType}`} key={message.id}>
+                        <div>
+                          <strong>{formatSender(message, participantNamesByUserId)}</strong>
+                          <small>
+                            {message.roundNumber === 0
+                              ? "posicao inicial"
+                              : `rodada ${message.roundNumber ?? simulation.negotiationRound.roundNumber}`}
+                          </small>
+                        </div>
+                        <p>{message.content}</p>
+                        <code>{message.contentHash.slice(0, 14)}</code>
+                      </article>
+                    ))}
                   </div>
                 </div>
 
@@ -337,15 +464,29 @@ export function App() {
                     <ClipboardList size={16} aria-hidden="true" />
                     <span>Alternativas finais</span>
                   </div>
-                  <div className="proposal-list">
-                    {simulation.proposals.map((proposal) => (
-                      <article className="proposal-card" key={proposal.id}>
-                        <strong>{proposal.title}</strong>
-                        <p>{proposal.description}</p>
-                      </article>
-                    ))}
-                  </div>
+                  {isSimulationDisplayComplete ? (
+                    <div className="proposal-list">
+                      {simulation.proposals.map((proposal) => (
+                        <article className="proposal-card" key={proposal.id}>
+                          <strong>{proposal.title}</strong>
+                          <p>{proposal.description}</p>
+                        </article>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="muted">As alternativas finais entram depois que a rodada publica terminar.</p>
+                  )}
                 </div>
+              </section>
+            ) : null}
+
+            {isSimulating ? (
+              <section className="panel simulation-pending" aria-live="polite">
+                <div className="section-title">
+                  <Sparkles size={16} aria-hidden="true" />
+                  <span>Negociacao em andamento</span>
+                </div>
+                <p>Os participantes simulados estao respondendo e o agente negociador esta consolidando a rodada.</p>
               </section>
             ) : null}
 
@@ -379,17 +520,19 @@ export function App() {
             <section className="conversation">
               <div className="section-title">
                 <MessageSquareText size={16} aria-hidden="true" />
-                <span>Entrevista assincrona</span>
+                <span>Entrevista privada opcional</span>
               </div>
               <div className="message-list">
-                {messages.map((message) => (
+                {privateInterviewMessages.map((message) => (
                   <article className={`message ${message.senderType}`} key={message.id}>
                     <span>{message.senderType === "user" ? "Voce" : "Agente"}</span>
                     <p>{message.content}</p>
                     <small>{message.visibilityScope}</small>
                   </article>
                 ))}
-                {messages.length === 0 ? <p className="muted">Envie a primeira resposta ao agente.</p> : null}
+                {privateInterviewMessages.length === 0 ? (
+                  <p className="muted">Envie uma posicao privada se quiser extrair fragmentos antes de negociar.</p>
+                ) : null}
               </div>
               <form className="message-form" onSubmit={handleSendMessage}>
                 <textarea
@@ -413,4 +556,20 @@ export function App() {
       </section>
     </main>
   );
+}
+
+function formatSender(message: Message, participantNamesByUserId: Map<string, string>): string {
+  if (message.senderType === "negotiator_agent") {
+    return "Agente negociador";
+  }
+
+  if (message.senderType === "simulated_participant") {
+    return participantNamesByUserId.get(message.senderId) ?? "Participante simulado";
+  }
+
+  if (message.senderType === "user") {
+    return "Voce";
+  }
+
+  return "Agente";
 }

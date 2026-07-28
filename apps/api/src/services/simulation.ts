@@ -1,7 +1,7 @@
 import type { AuditLogService } from "./auditLog.js";
 import type { AgentRuntime } from "./agents.js";
 import type { InMemoryStore } from "../store.js";
-import type { Party, SimulatedParticipant, SimulationRun, Topic } from "../../../../packages/domain/src/index.js";
+import type { Message, Party, SimulatedParticipant, SimulationRun, Topic } from "../../../../packages/domain/src/index.js";
 
 export class SimulationService {
   constructor(
@@ -10,10 +10,23 @@ export class SimulationService {
     private readonly auditLog: AuditLogService
   ) {}
 
-  async runTopicSimulation(topic: Topic, participantCount: number): Promise<SimulationRun> {
+  async runTopicSimulation(topic: Topic, participantCount: number, roundCount = 2): Promise<SimulationRun> {
     const boundedCount = Math.max(3, Math.min(10, participantCount));
+    const boundedRoundCount = Math.max(1, Math.min(4, roundCount));
     const draft = await this.agents.simulateDeliberation(topic, boundedCount);
     const partiesByName = new Map<string, Party>();
+    const negotiatorAgentId = `negotiator-${topic.id}`;
+    const publicNegotiationMessages: Message[] = [];
+    const negotiationRounds = [];
+    let currentProposal = draft.negotiation.compromiseProposal;
+    let latestRoundDraft = {
+      publicMessage: "Agente negociador: posicoes iniciais registradas para iniciar a negociacao publica.",
+      summary: draft.negotiation.summary,
+      tensions: draft.negotiation.tensions,
+      compromiseProposal: draft.negotiation.compromiseProposal,
+      unresolvedIssues: draft.negotiation.unresolvedIssues,
+      proposals: draft.proposals
+    };
 
     const parties = draft.parties.map((party) => {
       const createdParty = this.store.addParty({
@@ -36,28 +49,27 @@ export class SimulationService {
       this.store.joinTopic(topic.id, user.id);
 
       const party = partiesByName.get(participantDraft.preferredParty) ?? fallbackParty;
-      const message = this.store.addMessage({
+      const message = this.store.addMessage(buildPublicNegotiationMessage({
         topicId: topic.id,
-        senderType: "user",
         senderId: user.id,
-        recipientType: "user_agent",
-        recipientId: `agent-${user.id}`,
+        recipientId: negotiatorAgentId,
+        roundNumber: 0,
         content: [
           `Perspectiva: ${participantDraft.perspective}`,
           `Posicao: ${participantDraft.stance}`,
           `Motivacao: ${participantDraft.motivation}`,
-          `Restricao: ${participantDraft.constraint}`,
+          `Limite: ${participantDraft.constraint}`,
           `Concessao possivel: ${participantDraft.concession}`
-        ].join("\n"),
-        visibilityScope: "anonymous_aggregate"
-      });
+        ].join("\n")
+      }));
+      publicNegotiationMessages.push(message);
 
       this.store.addFragment({
         sourceMessageId: message.id,
         ownerUserId: user.id,
         fragmentType: "preference",
         content: participantDraft.stance,
-        visibilityScope: "anonymous_aggregate",
+        visibilityScope: "public_full",
         consentStatus: "granted",
         allowedUses: ["simulation", "topic_mapping", "party_formation"]
       });
@@ -66,7 +78,7 @@ export class SimulationService {
         ownerUserId: user.id,
         fragmentType: "motivation",
         content: participantDraft.motivation,
-        visibilityScope: "anonymous_aggregate",
+        visibilityScope: "public_full",
         consentStatus: "granted",
         allowedUses: ["simulation", "topic_mapping"]
       });
@@ -75,7 +87,7 @@ export class SimulationService {
         ownerUserId: user.id,
         fragmentType: "constraint",
         content: participantDraft.constraint,
-        visibilityScope: "anonymous_aggregate",
+        visibilityScope: "public_full",
         consentStatus: "granted",
         allowedUses: ["simulation", "negotiation"]
       });
@@ -84,7 +96,7 @@ export class SimulationService {
         ownerUserId: user.id,
         fragmentType: "argument",
         content: participantDraft.concession,
-        visibilityScope: "anonymous_aggregate",
+        visibilityScope: "public_full",
         consentStatus: "granted",
         allowedUses: ["simulation", "negotiation"]
       });
@@ -98,30 +110,111 @@ export class SimulationService {
         motivation: participantDraft.motivation,
         constraint: participantDraft.constraint,
         concession: participantDraft.concession,
+        values: participantDraft.values,
+        hardConstraints: participantDraft.hardConstraints,
+        negotiablePreferences: participantDraft.negotiablePreferences,
+        cooperationStyle: participantDraft.cooperationStyle,
+        suspicionLevel: participantDraft.suspicionLevel,
         partyId: party.id
       });
     });
 
-    const negotiationRound = this.store.addNegotiationRound({
-      topicId: topic.id,
-      roundType: "simulation",
-      participantsScope: parties.map((party) => party.name).join(", "),
-      status: "completed",
-      summary: draft.negotiation.summary,
-      tensions: draft.negotiation.tensions,
-      compromiseProposal: draft.negotiation.compromiseProposal,
-      unresolvedIssues: draft.negotiation.unresolvedIssues
-    });
+    for (let roundNumber = 1; roundNumber <= boundedRoundCount; roundNumber += 1) {
+      const roundMessageIds: string[] = [];
+      const participantTurns = [];
 
-    const proposals = draft.proposals.map((proposal) =>
+      for (const participant of simulatedParticipants) {
+        const turn = await this.agents.simulateParticipantTurn({
+          topic,
+          participant,
+          transcript: formatTranscript(publicNegotiationMessages),
+          currentProposal,
+          roundNumber
+        });
+        participantTurns.push({
+          participantName: participant.displayName,
+          ...turn
+        });
+
+        const message = this.store.addMessage({
+          topicId: topic.id,
+          senderType: "simulated_participant",
+          senderId: participant.userId,
+          recipientType: "negotiator_agent",
+          recipientId: negotiatorAgentId,
+          content: turn.publicMessage,
+          visibilityScope: "public_full",
+          conversationType: "public_negotiation",
+          roundNumber
+        });
+        publicNegotiationMessages.push(message);
+        roundMessageIds.push(message.id);
+      }
+
+      latestRoundDraft = await this.agents.negotiatePublicRound({
+        topic,
+        participantTurns,
+        transcript: formatTranscript(publicNegotiationMessages),
+        previousProposal: currentProposal,
+        roundNumber,
+        isFinalRound: roundNumber === boundedRoundCount
+      });
+      currentProposal = latestRoundDraft.compromiseProposal;
+
+      const negotiatorMessage = this.store.addMessage({
+        topicId: topic.id,
+        senderType: "negotiator_agent",
+        senderId: negotiatorAgentId,
+        recipientType: "topic",
+        recipientId: topic.id,
+        content: [
+          latestRoundDraft.publicMessage,
+          "",
+          "Proposta de convergencia:",
+          latestRoundDraft.compromiseProposal,
+          "",
+          `Pendencias: ${latestRoundDraft.unresolvedIssues.join("; ")}`
+        ].join("\n"),
+        visibilityScope: "public_full",
+        conversationType: "public_negotiation",
+        roundNumber
+      });
+      publicNegotiationMessages.push(negotiatorMessage);
+      roundMessageIds.push(negotiatorMessage.id);
+
+      const negotiationRound = this.store.addNegotiationRound({
+        topicId: topic.id,
+        roundType: "simulation",
+        roundNumber,
+        participantsScope: parties.map((party) => party.name).join(", "),
+        status: "completed",
+        summary: latestRoundDraft.summary,
+        tensions: latestRoundDraft.tensions,
+        compromiseProposal: latestRoundDraft.compromiseProposal,
+        unresolvedIssues: latestRoundDraft.unresolvedIssues,
+        publicTranscriptMessageIds: publicNegotiationMessages.map((message) => message.id)
+      });
+      negotiationRounds.push(negotiationRound);
+
+      for (const message of publicNegotiationMessages.filter((item) => roundMessageIds.includes(item.id))) {
+        message.negotiationRoundId = negotiationRound.id;
+      }
+    }
+
+    const latestNegotiationRound = negotiationRounds.at(-1);
+    if (!latestNegotiationRound) {
+      throw new Error("simulation_without_negotiation_round");
+    }
+
+    const proposals = latestRoundDraft.proposals.map((proposal) =>
       this.store.addProposal({
         topicId: topic.id,
-        authorType: "coordinator_agent",
-        authorId: topic.coordinatorAgentId,
+        authorType: "negotiator_agent",
+        authorId: negotiatorAgentId,
         title: proposal.title,
         description: proposal.description,
         status: "active",
-        visibilityScope: "public_summary"
+        visibilityScope: "public_full"
       })
     );
 
@@ -130,28 +223,82 @@ export class SimulationService {
     const simulationRun = this.store.addSimulationRun({
       topicId: topic.id,
       participantCount: simulatedParticipants.length,
+      roundCount: boundedRoundCount,
       participants: simulatedParticipants,
       parties,
-      negotiationRound,
+      negotiationRound: latestNegotiationRound,
+      negotiationRounds,
+      publicNegotiationMessages,
       proposals
     });
 
-    this.auditLog.record({
-      topicId: topic.id,
-      eventType: "simulation_run_created",
-      actorType: "coordinator_agent",
-      actorId: topic.coordinatorAgentId,
-      payload: {
-        simulationRunId: simulationRun.id,
-        participantCount: simulationRun.participantCount,
-        partyCount: simulationRun.parties.length,
-        proposalCount: simulationRun.proposals.length
-      },
-      visibilityScope: "public_summary"
-    });
+    for (const message of publicNegotiationMessages) {
+      this.auditLog.record({
+        topicId: topic.id,
+        eventType: "public_negotiation_message_created",
+        actorType: message.senderType,
+        actorId: message.senderId,
+        payload: {
+          messageId: message.id,
+          recipientType: message.recipientType,
+          recipientId: message.recipientId,
+          negotiationRoundId: message.negotiationRoundId,
+          contentHash: message.contentHash
+        },
+        visibilityScope: "public_full"
+      });
+    }
+
+    for (const negotiationRound of negotiationRounds) {
+      this.auditLog.record({
+        topicId: topic.id,
+        eventType: "public_negotiation_round_completed",
+        actorType: "negotiator_agent",
+        actorId: negotiatorAgentId,
+        payload: {
+          simulationRunId: simulationRun.id,
+          negotiationRoundId: negotiationRound.id,
+          roundNumber: negotiationRound.roundNumber,
+          participantCount: simulationRun.participantCount,
+          messageCount: negotiationRound.publicTranscriptMessageIds.length,
+          proposalCount: simulationRun.proposals.length,
+          publicTranscriptMessageIds: negotiationRound.publicTranscriptMessageIds
+        },
+        visibilityScope: "public_full"
+      });
+    }
 
     return simulationRun;
   }
+}
+
+function buildPublicNegotiationMessage(input: {
+  topicId: string;
+  senderId: string;
+  recipientId: string;
+  roundNumber: number;
+  content: string;
+}): Omit<Message, "id" | "contentHash" | "createdAt"> {
+  return {
+    topicId: input.topicId,
+    senderType: "simulated_participant",
+    senderId: input.senderId,
+    recipientType: "negotiator_agent",
+    recipientId: input.recipientId,
+    content: input.content,
+    visibilityScope: "public_full",
+    conversationType: "public_negotiation",
+    roundNumber: input.roundNumber
+  };
+}
+
+function formatTranscript(messages: Message[]): string {
+  return messages
+    .map((message) => {
+      const speaker = message.senderType === "negotiator_agent" ? "Agente negociador" : message.senderId;
+      return `[rodada ${message.roundNumber ?? 0}] ${speaker}: ${message.content}`;
+    })
+    .join("\n\n");
 }
 
 function slugify(value: string): string {

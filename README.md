@@ -52,10 +52,16 @@ PORT=3333
 WEB_ORIGIN=http://localhost:5173
 LLM_PROVIDER=openai
 OPENAI_API_KEY=sua-chave-local
-OPENAI_MODEL=gpt-5.5
+OPENAI_MODEL=gpt-5.6-terra
+NEGOTIATOR_MODEL=gpt-5.6-sol
+SIMULATED_AGENT_MODEL=gpt-5.6-terra
 ```
 
 O arquivo `.env` esta no `.gitignore` e nao deve ser enviado ao GitHub.
+
+`NEGOTIATOR_MODEL` e usado pelo agente negociador comum, que sintetiza rodadas e propostas.
+`SIMULATED_AGENT_MODEL` e usado pelos participantes simulados. Para reduzir custo em testes, use
+`LLM_PROVIDER=mock` ou escolha um modelo mais economico para participantes simulados.
 
 ## GitHub
 

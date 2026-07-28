@@ -39,7 +39,20 @@ export const decisionMechanisms = [
 
 export type DecisionMechanism = (typeof decisionMechanisms)[number];
 
-export type ActorType = "user" | "user_agent" | "coordinator_agent" | "party_agent" | "system";
+export type ActorType =
+  | "user"
+  | "user_agent"
+  | "coordinator_agent"
+  | "negotiator_agent"
+  | "simulated_participant"
+  | "party_agent"
+  | "system";
+
+export type ConversationType =
+  | "private_interview"
+  | "public_negotiation"
+  | "party_internal"
+  | "inter_party_negotiation";
 
 export interface User {
   id: string;
@@ -84,6 +97,9 @@ export interface Message {
   content: string;
   contentHash: string;
   visibilityScope: VisibilityScope;
+  conversationType: ConversationType;
+  negotiationRoundId?: string;
+  roundNumber?: number;
   createdAt: string;
 }
 
@@ -134,6 +150,11 @@ export interface SimulatedParticipant {
   motivation: string;
   constraint: string;
   concession: string;
+  values: string[];
+  hardConstraints: string[];
+  negotiablePreferences: string[];
+  cooperationStyle: "pragmatic" | "principled" | "adversarial" | "bridge_builder";
+  suspicionLevel: "low" | "medium" | "high";
   partyId: string;
   createdAt: string;
 }
@@ -142,12 +163,14 @@ export interface NegotiationRound {
   id: string;
   topicId: string;
   roundType: "simulation";
+  roundNumber: number;
   participantsScope: string;
-  status: "completed";
+  status: "running" | "completed";
   summary: string;
   tensions: string[];
   compromiseProposal: string;
   unresolvedIssues: string[];
+  publicTranscriptMessageIds: string[];
   startedAt: string;
   endedAt: string;
 }
@@ -179,9 +202,12 @@ export interface SimulationRun {
   id: string;
   topicId: string;
   participantCount: number;
+  roundCount: number;
   participants: SimulatedParticipant[];
   parties: Party[];
   negotiationRound: NegotiationRound;
+  negotiationRounds: NegotiationRound[];
+  publicNegotiationMessages: Message[];
   proposals: Proposal[];
   createdAt: string;
 }

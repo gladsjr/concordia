@@ -228,6 +228,20 @@ textarea:focus {
   color: #3f4a50;
 }
 
+.runtime-warning,
+.runtime-note {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.runtime-warning {
+  color: #8b3f2b;
+}
+
+.runtime-note {
+  color: #277267;
+}
+
 .simulation-actions {
   display: flex;
   align-items: end;
@@ -258,13 +272,19 @@ textarea:focus {
   gap: 14px;
 }
 
+.simulation-pending {
+  border-color: #bddbd4;
+  background: #f1faf6;
+}
+
 .simulation-panel.wide {
   grid-column: 1 / -1;
 }
 
 .participant-list,
 .party-list,
-.proposal-list {
+.proposal-list,
+.transcript-list {
   display: grid;
   gap: 12px;
 }
@@ -331,6 +351,64 @@ dd {
   padding: 12px;
   color: #2f3728;
   line-height: 1.45;
+}
+
+.round-count {
+  color: #697176;
+  font-weight: 700;
+}
+
+.live-indicator {
+  width: fit-content;
+  border: 1px solid #bddbd4;
+  border-radius: 999px;
+  background: #f1faf6;
+  color: #277267;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.negotiation-message {
+  display: grid;
+  gap: 8px;
+  border: 1px solid #ebe5d8;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 12px;
+}
+
+.negotiation-message > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.negotiation-message strong {
+  color: #182126;
+}
+
+.negotiation-message small {
+  color: #697176;
+  font-weight: 700;
+}
+
+.negotiation-message p {
+  margin: 0;
+  color: #3f4a50;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.negotiation-message.negotiator_agent {
+  border-color: #bddbd4;
+  background: #f1faf6;
+}
+
+.negotiation-message.simulated_participant {
+  border-color: #d8d2c4;
 }
 
 .simulation-columns {

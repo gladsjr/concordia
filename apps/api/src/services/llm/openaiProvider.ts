@@ -11,21 +11,26 @@ export class OpenAILLMProvider implements LLMProvider {
   }
 
   async generateText(input: GenerateTextInput): Promise<string> {
-    const response = await this.client.responses.create({
+    const request = {
       model: this.model,
       instructions: input.instructions,
-      input: input.input
-    });
+      input: input.input,
+      ...buildReasoningOptions(input),
+      ...buildTextOptions(input)
+    };
+    const response = await this.client.responses.create(request as OpenAI.Responses.ResponseCreateParamsNonStreaming);
 
     return response.output_text;
   }
 
   async generateJson(input: GenerateJsonInput): Promise<unknown> {
-    const response = await this.client.responses.create({
+    const request = {
       model: this.model,
       instructions: input.instructions,
       input: input.input,
+      ...buildReasoningOptions(input),
       text: {
+        ...buildTextOptions(input).text,
         format: {
           type: "json_schema",
           name: input.schemaName,
@@ -33,8 +38,34 @@ export class OpenAILLMProvider implements LLMProvider {
           strict: true
         }
       }
-    });
+    };
+    const response = await this.client.responses.create(request as OpenAI.Responses.ResponseCreateParamsNonStreaming);
 
     return JSON.parse(response.output_text) as unknown;
   }
+}
+
+function buildReasoningOptions(input: GenerateJsonInput | GenerateTextInput) {
+  if (!input.reasoningEffort && !input.reasoningMode) {
+    return {};
+  }
+
+  return {
+    reasoning: {
+      ...(input.reasoningEffort ? { effort: input.reasoningEffort } : {}),
+      ...(input.reasoningMode ? { mode: input.reasoningMode } : {})
+    }
+  };
+}
+
+function buildTextOptions(input: GenerateJsonInput | GenerateTextInput) {
+  if (!input.verbosity) {
+    return {};
+  }
+
+  return {
+    text: {
+      verbosity: input.verbosity
+    }
+  };
 }

@@ -12,7 +12,9 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   });
 
   if (!response.ok) {
-    throw new Error(`API error ${response.status}`);
+    const payload = await response.json().catch(() => undefined) as { error?: string } | undefined;
+    const detail = payload?.error ? `: ${payload.error}` : "";
+    throw new Error(`A API respondeu com HTTP ${response.status}${detail}`);
   }
 
   return response.json() as Promise<T>;
@@ -20,6 +22,19 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 
 export function listTopics() {
   return request<{ topics: Topic[] }>("/topics");
+}
+
+export function getHealth() {
+  return request<{
+    ok: boolean;
+    service: string;
+    llm: {
+      provider: string;
+      generalModel?: string;
+      negotiatorModel?: string;
+      simulatedParticipantModel?: string;
+    };
+  }>("/health");
 }
 
 export function createTopic(payload: {
@@ -61,10 +76,10 @@ export function getLatestSimulation(topicId: string) {
   return request<{ simulation: SimulationRun | null }>(`/topics/${topicId}/simulations/latest`);
 }
 
-export function runSimulation(topicId: string, participantCount: number) {
+export function runSimulation(topicId: string, participantCount: number, roundCount: number) {
   return request<{ simulation: SimulationRun }>(`/topics/${topicId}/simulations`, {
     method: "POST",
-    body: JSON.stringify({ participantCount })
+    body: JSON.stringify({ participantCount, roundCount })
   });
 }
 
